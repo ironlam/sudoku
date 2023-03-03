@@ -1,37 +1,50 @@
+import tkinter as tk
+from PIL import Image, ImageTk
 import os
-import pygame
+import json
 
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-LIGHT_GRAY = (200, 200, 200)
-DARK_GRAY = (100, 100, 100)
-RED = (255, 0, 0)
+def load_config():
+    with open('config.json') as f:
+        return json.load(f)
 
 
-def load_image(name, colorkey=None):
-    fullname = os.path.join('sudoku_gui', 'images', name)
-    try:
-        image = pygame.image.load(fullname)
-    except pygame.error as e:
-        print(f'Cannot load image: {fullname}')
-        raise SystemExit(str(e))
-    image = image.convert()
-    if colorkey is not None:
-        if colorkey == -1:
-            colorkey = image.get_at((0, 0))
-        image.set_colorkey(colorkey, pygame.RLEACCEL)
-    return image, image.get_rect()
+def get_board_cell_size(board_size):
+    return 50 if board_size < 10 else 35
 
 
-def draw_text(surface, text, font, color, x, y, center=False):
-    text_obj = font.render(text, True, color)
-    text_rect = text_obj.get_rect()
-    if center:
-        text_rect.centerx = x
-        text_rect.centery = y
-    else:
-        text_rect.x = x
-        text_rect.y = y
-    surface.blit(text_obj, text_rect)
+def get_board_canvas_size(board_size):
+    cell_size = get_board_cell_size(board_size)
+    return board_size * cell_size + 4, board_size * cell_size + 4
+
+
+def load_icon(icon_name):
+    config = load_config()
+    script_dir = os.path.dirname(__file__)
+    icon_path = os.path.join(script_dir, 'images', config['images'][icon_name])
+    icon_image = Image.open(icon_path)
+    icon_photo = ImageTk.PhotoImage(icon_image)
+    return icon_photo
+
+
+def get_canvas_coords(row, col, board_size, cell_size):
+    x0 = col * cell_size + 2
+    y0 = row * cell_size + 2
+    x1 = x0 + cell_size
+    y1 = y0 + cell_size
+    return x0, y0, x1, y1
+
+
+def get_cell_coords(x, y, board_size, cell_size):
+    row = (y - 2) // cell_size
+    col = (x - 2) // cell_size
+    if row >= board_size or col >= board_size:
+        return None
+    return row, col
+
+
+def create_dropdown_menu(master, options, command, current_option=None):
+    var = tk.StringVar(value=current_option)
+    menu = tk.OptionMenu(master, var, *options, command=command)
+    menu.config(width=4)
+    return var, menu

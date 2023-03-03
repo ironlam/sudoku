@@ -1,134 +1,83 @@
 import tkinter as tk
 from tkinter import messagebox
+from .utils import load_icon, create_dropdown_menu, get_board_canvas_size, get_board_cell_size, load_config
 from sudoku_board import SudokuBoard
-
-# Define constants for grid sizes
-GRID_SIZES = {
-    '4x4': 4,
-    '6x6': 6,
-    '9x9': 9,
-    '12x12': 12,
-    '16x16': 16
-}
 
 
 class SudokuGUI:
-    def __init__(self):
-        self.window = tk.Tk()
-        self.window.title('Sudoku')
-        self.board = None
-        self.buttons = []
 
-        self.create_menu()
+    def __init__(self, master=None):
+        self.board_canvas = None
+        self.master = master
+        self.master.title("Sudoku")
+        self.master.geometry("500x550")
+        self.config = load_config()
+        self.board_size = self.config["board_size"]
+        self.cell_size = self.config["cell_size"]
+        self.board_canvas_size = (self.cell_size * self.board_size + 4, self.cell_size * self.board_size + 4)
+        self.board = SudokuBoard(self.board_size, self.config["puzzle_difficulty"])
         self.create_board()
         self.create_buttons()
 
-        self.window.mainloop()
+    def create_menu_bar(self):
+        menu_bar = tk.Menu(self.master)
+        self.master.config(menu=menu_bar)
 
-    def create_menu(self):
-        # Create a menu for selecting the grid size
-        menu = tk.Menu(self.window)
-        self.window.config(menu=menu)
+        file_menu = tk.Menu(menu_bar)
+        file_menu.add_command(label="New", command=self.reset_board)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.master.quit)
+        menu_bar.add_cascade(label="File", menu=file_menu)
 
-        grid_size_menu = tk.Menu(menu, tearoff=0)
-        menu.add_cascade(label='Grid Size', menu=grid_size_menu)
+        help_menu = tk.Menu(menu_bar)
+        help_menu.add_command(label="About", command=self.show_about_dialog)
+        menu_bar.add_cascade(label="Help", menu=help_menu)
 
-        for size in GRID_SIZES:
-            grid_size_menu.add_command(label=size, command=lambda s=size: self.change_grid_size(s))
+    def create_toolbar(self):
+        toolbar = tk.Frame(self.master)
 
-        # Add a button for solving the puzzle
-        menu.add_command(label='Solve', command=self.show_solution)
+        new_icon = load_icon("new")
+        new_button = tk.Button(toolbar, image=new_icon, command=self.reset_board)
+        new_button.image = new_icon
+        new_button.pack(side=tk.LEFT, padx=2, pady=2)
 
-        # Add a button for resetting the puzzle
-        menu.add_command(label='Reset', command=self.reset_board)
+        reset_icon = load_icon("reset")
+        reset_button = tk.Button(toolbar, image=reset_icon, command=self.reset_board)
+        reset_button.image = reset_icon
+        reset_button.pack(side=tk.LEFT, padx=2, pady=2)
+
+        solution_icon = load_icon("solution")
+        solution_button = tk.Button(toolbar, image=solution_icon, command=self.show_solution)
+        solution_button.image = solution_icon
+        solution_button.pack(side=tk.LEFT, padx=2, pady=2)
+
+        board_size_options = list(map(str, self.board_size_options))
+        self.board_size_var, board_size_menu = create_dropdown_menu(toolbar, board_size_options, self.change_grid_size,
+                                                                     str(self.board_size))
+        board_size_menu.pack(side=tk.LEFT, padx=2, pady=2)
+
+        toolbar.pack(side=tk.TOP, fill=tk.X)
 
     def create_board(self):
-        # Create the Sudoku board
-        self.board = SudokuBoard(GRID_SIZES['9x9'])
+        self.board_canvas = tk.Canvas(self.master, width=self.board_canvas_size[0], height=self.board_canvas_size[1])
+        self.board_canvas.pack(side=tk.TOP)
 
-        # Create a grid of Entry widgets for inputting the numbers
-        for i in range(self.board.size):
-            row = []
-            for j in range(self.board.size):
-                e = tk.Entry(self.window, width=2, font=('Arial', 16, 'bold'), justify='center')
-                e.grid(row=i, column=j)
-                row.append(e)
-            self.buttons.append(row)
+        for row in range(self.board_size + 1):
+            x0, y0, x1, y1 = 2, row * self.cell_size + 2, self.board_canvas_size[0] - 2, row * self.cell_size + 2
+            self.board_canvas.create_line(x0, y0, x1, y1)
 
-    def create_buttons(self):
-        # Add a button for showing the solution
-        solve_button = tk.Button(self.window, text='Show Solution', command=self.show_solution, bg='red', fg='white')
-        solve_button.grid(row=self.board.size, column=0, columnspan=self.board.size, sticky='ew')
+        for col in range(self.board_size + 1):
+            x0, y0, x1, y1 = col * self.cell_size + 2, 2, col * self.cell_size + 2, self.board_canvas_size[1] - 2
+            self.board_canvas.create_line(x0, y0, x1, y1)
 
-        # Add a button for resetting the board
-        reset_button = tk.Button(self.window, text='Reset', command=self.reset_board)
-        reset_button.grid(row=self.board.size + 1, column=0, columnspan=self.board.size, sticky='ew')
+        for row in range(self.board_size):
+            for col in range(self.board_size):
+                cell_value = self.board.get_value(row, col)
+                if cell_value != 0:
+                    x, y = self.get_cell_position(row, col)
+                    self.board_canvas.create_text(x + self.cell_size // 2, y + self.cell_size // 2, text=cell_value,
+                                                  font=("Arial", 16), tags="value")
 
-    def change_grid_size(self, size):
-        # Reset the board and create a new board with the selected size
-        self.reset_board()
-        self.board = SudokuBoard(GRID_SIZES[size])
+        self.board_canvas.bind("<Button-1>", self.handle_mouse_click)
 
-        # Remove the existing buttons and create new buttons for the new board
-        for button_row in self.buttons:
-            for button in button_row:
-                button.destroy()
-        self.buttons = []
 
-        for i in range(self.board.size):
-            row = []
-            for j in range(self.board.size):
-                e = tk.Entry(self.window, width=2, font=('Arial', 16, 'bold'), justify='center')
-                e.grid(row=i, column=j)
-                row.append(e)
-            self.buttons.append(row)
-
-    def reset_board(self):
-        self.board.reset()
-        for i in range(self.board.size):
-            for j in range(self.board.size):
-                self.buttons[i][j].delete(0, 'end')
-
-    def get_board_values(self):
-        # Convert the values in the Entry widgets to a 2D list of integers
-        values = []
-        for i in range(self.board.size):
-            row = []
-            for j in range(self.board.size):
-                e = self.buttons[i][j]
-                try:
-                    value = int(e.get())
-                    if value < 0 or value > self.board.size:
-                        raise ValueError
-                    row.append(value)
-                except ValueError:
-                    row.append(0)
-            values.append(row)
-        return values
-
-    def set_board_values(self, values):
-        # Set the values in the Entry widgets from a 2D list of integers
-        for i in range(self.board.size):
-            for j in range(self.board.size):
-                value = values[i][j]
-                if value != 0:
-                    self.buttons[i][j].delete(0, 'end')
-                    self.buttons[i][j].insert(0, str(value))
-
-    def show_solution(self):
-        # Get the current values in the Entry widgets
-        values = self.get_board_values()
-
-        # Solve the Sudoku puzzle
-        self.board.solve()
-        solution = self.board.solution
-
-        # Check if the solution matches the current values
-        for i in range(self.board.size):
-            for j in range(self.board.size):
-                if solution[i][j] != values[i][j]:
-                    messagebox.showerror('Incorrect Solution', 'The solution is incorrect.')
-                    return
-
-        # Show the solution in the Entry widgets
-        self.set_board_values(solution)

@@ -1,30 +1,78 @@
+import numpy as np
+
+
 def solve_sudoku(board):
-    # Find the first empty cell
+    """
+    Solves a Sudoku puzzle using backtracking algorithm.
+
+    :param board: numpy 2D array of integers
+        A partially filled Sudoku grid.
+    :return: numpy 2D array of integers
+        A solved Sudoku grid.
+    """
     row, col = find_empty_cell(board)
 
-    # If there are no empty cells, the board is solved
-    if row is None:
-        return True
+    # If all cells are filled, puzzle is solved
+    if row == -1:
+        return board
 
-    # Try all possible values for the cell
-    for value in range(1, board.size + 1):
-        if board.is_valid_value(row, col, value):
-            board.set_value(row, col, value)
+    # Try numbers from 1 to 9
+    for num in range(1, 10):
+        if is_valid_move(board, row, col, num):
+            board[row][col] = num
+            if solve_sudoku(board) is not None:
+                return board
+            board[row][col] = 0
 
-            # Recursively try to solve the rest of the board
-            if solve_sudoku(board):
-                return True
-
-            # If the board is not solvable with the current value, backtrack
-            board.set_value(row, col, 0)
-
-    # If no values work, the puzzle is unsolvable
-    return False
+    # If no number works, backtrack
+    return None
 
 
 def find_empty_cell(board):
-    for row in range(board.size):
-        for col in range(board.size):
-            if board.get_value(row, col) == 0:
+    """
+    Finds the next empty cell in the Sudoku board.
+
+    :param board: numpy 2D array of integers
+        A partially filled Sudoku grid.
+    :return: tuple of integers
+        The row and column index of the next empty cell, or (-1, -1) if there is no empty cell.
+    """
+    for row in range(len(board)):
+        for col in range(len(board)):
+            if board[row][col] == 0:
                 return row, col
-    return None, None
+
+    return -1, -1
+
+
+def is_valid_move(board, row, col, num):
+    """
+    Checks if a number can be placed in a particular cell of the Sudoku board.
+
+    :param board: numpy 2D array of integers
+        A partially filled Sudoku grid.
+    :param row: int
+        The row index of the cell.
+    :param col: int
+        The column index of the cell.
+    :param num: int
+        The number to be placed in the cell.
+    :return: bool
+        True if the number can be placed in the cell, False otherwise.
+    """
+    # Check row
+    if num in board[row, :]:
+        return False
+
+    # Check column
+    if num in board[:, col]:
+        return False
+
+    # Check box
+    box_size = int(np.sqrt(board.shape[0]))
+    box_row, box_col = row // box_size, col // box_size
+    box = board[box_row * box_size:(box_row + 1) * box_size, box_col * box_size:(box_col + 1) * box_size]
+    if num in box:
+        return False
+
+    return True
