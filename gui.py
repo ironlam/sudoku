@@ -1,127 +1,155 @@
-import tkinter as tk
-from tkinter import messagebox
+import os
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+import sys
+import logging
+import pygame
 from sudoku import Sudoku
 
+logging.basicConfig(level=logging.DEBUG)
 
-class SudokuGame:
-    def __init__(self, board_size):
-        self.board_size = board_size
-        self.sudoku = Sudoku(board_size)
-        self.solution = [[self.sudoku.board[i][j] for j in range(board_size)] for i in range(board_size)]
-        self.num_cells_to_fill = sum([row.count(0) for row in self.sudoku.board])
-        self.num_cells_filled = self.board_size ** 2 - self.num_cells_to_fill
-        self.create_gui()
 
-    def create_gui(self):
-        self.root = tk.Tk()
-        self.root.title(f"{self.board_size}x{self.board_size} Sudoku")
-        self.root.geometry("600x600")
-        self.root.resizable(0, 0)
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.frame_board = tk.Frame(self.root, bd=2, relief="solid")
-        self.frame_board.pack(side="top", padx=5, pady=5)
-        self.create_board()
-        self.frame_buttons = tk.Frame(self.root)
-        self.frame_buttons.pack(side="top", padx=5, pady=5)
-        tk.Button(self.frame_buttons, text="Solve", command=self.solve).grid(row=0, column=0, padx=5, pady=5)
-        tk.Button(self.frame_buttons, text="Clear", command=self.clear).grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(self.frame_buttons, text="New Game", command=self.new_game).grid(row=0, column=2, padx=5, pady=5)
-        self.var_board = tk.StringVar(value=f"{self.board_size}x{self.board_size}")
-        tk.OptionMenu(self.frame_buttons, self.var_board, f"{self.board_size}x{self.board_size}", "4x4", "6x6",
-                      command=self.select_board_size).grid(row=0, column=3, padx=5, pady=5)
+class GUI:
+    def __init__(self, size, clues):
+        logging.debug('initializing here.')
+        self.size = size
+        self.clues = clues
+        self.sudoku = Sudoku(size)
+        self.sudoku.generate(clues)
 
-    def create_board(self):
-        self.cells = []
-        for i in range(self.board_size):
-            row = []
-            for j in range(self.board_size):
-                cell_value = self.sudoku.board[i][j]
-                if cell_value == 0:
-                    cell = tk.Entry(self.frame_board, width=2, font=("Arial", 16), justify="center", validate="key",
-                                    validatecommand=(self.root.register(self.is_valid), "%P"))
-                    cell.insert(0, "")
-                    cell.bind("<FocusIn>", lambda event, row=i, col=j: self.on_click(row, col))
-                    cell.bind("<FocusOut>", lambda event, row=i, col=j: self.on_leave(row, col))
-                    cell.bind("<KeyRelease>", lambda event, row=i, col=j: self.on_key_release(row, col))
-                    cell.grid(row=i, column=j, padx=1, pady=1)
-                    row.append(cell)
-                else:
-                    cell = tk.Label(self.frame_board, text=cell_value, font=("Arial", 16), bg="white", relief="solid")
-                    cell.grid(row=i, column=j, padx=1, pady=1)
-                    row.append(cell)
-            self.cells.append(row)
+        try:
+            pygame.init()
 
-    def select_board_size(self, event):
-        self.root.destroy()
-        if self.var_board.get() == "4x4":
-            game = SudokuGame(4)
-        elif self.var_board.get() == "6x6":
-            game = SudokuGame(6)
-        elif self.var_board.get() == "9x9":
-            game = SudokuGame(9)
-        else:
-            game = SudokuGame(9)
-        game.root.mainloop()
+            self.clock = pygame.time.Clock()
+            self.screen = pygame.display.set_mode((500, 600))
+            pygame.display.set_caption("Sudoku")
 
-    def is_valid(self, value):
-        if value == "":
-            return True
-        if not value.isdigit():
-            return False
-        if int(value) < 1 or int(value) > self.board_size:
-            return False
-        return True
+            self.font = pygame.font.SysFont("Arial", 36)
 
-    def on_click(self, row, col):
-        cell = self.cells[row][col]
-        cell.config(bg="light blue")
+            self.new_game_button = Button((10, 520, 150, 50), "New Game")
+            self.solve_button = Button((170, 520, 150, 50), "Solve")
+            self.reset_button = Button((330, 520, 150, 50), "Reset")
 
-    def on_leave(self, row, col):
-        cell = self.cells[row][col]
-        cell.config(bg="white")
+            self.selected_cell = None
 
-    def on_key_release(self, row, col):
-        cell = self.cells[row][col]
-        value = cell.get()
-        if self.is_valid(value):
-            self.sudoku.board[row][col] = int(value)
-        else:
-            self.sudoku.board[row][col] = 0
-
-    def solve(self):
-        self.solution = [[self.sudoku.board[i][j] for j in range(self.board_size)] for i in range(self.board_size)]
-        if self.sudoku.solve(self.solution):
-            for i in range(self.board_size):
-                for j in range(self.board_size):
-                    if self.cells[i][j].winfo_class() == "Entry":
-                        self.cells[i][j].delete(0, tk.END)
-                        self.cells[i][j].insert(0, str(self.solution[i][j]))
-                        self.cells[i][j].config(fg="red")
-            self.num_cells_filled = self.board_size ** 2
-        else:
-            messagebox.showwarning("Sudoku Solver", "The puzzle cannot be solved.")
-
-    def clear(self):
-        for i in range(self.board_size):
-            for j in range(self.board_size):
-                if self.cells[i][j].winfo_class() == "Entry":
-                    self.cells[i][j].delete(0, tk.END)
-                    self.sudoku.board[i][j] = 0
-            self.num_cells_filled = 0
-
-    def new_game(self):
-        self.root.destroy()
-        if self.board_size == 4:
-            game = SudokuGame(4)
-        elif self.board_size == 6:
-            game = SudokuGame(6)
-        else:
-            game = SudokuGame(9)
-        game.root.mainloop()
-
-    def on_closing(self):
-        if messagebox.askokcancel("Sudoku", "Do you want to quit?"):
-            self.root.destroy()
+            self.run()
+        except pygame.error as e:
+            logging.error("Pygame initialization error: %s", e)
 
     def run(self):
-        self.root.mainloop()
+        """
+        Main game loop.
+        """
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+            self.clock.tick(60)
+            self.handle_events()
+            self.draw()
+            pygame.display.update()
+            pygame.display.flip()
+
+    def handle_events(self):
+        """
+        Handle events such as mouse clicks and key presses.
+        """
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                if self.new_game_button.rect.collidepoint(pos):
+                    self.new_game()
+                elif self.solve_button.rect.collidepoint(pos):
+                    self.solve()
+                elif self.reset_button.rect.collidepoint(pos):
+                    self.reset()
+                else:
+                    self.selected_cell = self.get_cell_at_pos(pos)
+            elif event.type == pygame.KEYDOWN and self.selected_cell is not None:
+                if event.unicode.isdigit():
+                    self.sudoku.board[self.selected_cell[0]][self.selected_cell[1]] = int(event.unicode)
+                elif event.key == pygame.K_BACKSPACE or event.key == pygame.K_DELETE:
+                    self.sudoku.board[self.selected_cell[0]][self.selected_cell[1]] = 0
+
+    def draw(self):
+        """
+        Draw the game screen.
+        """
+        self.screen.fill((255, 255, 255))
+
+        for i in range(self.size):
+            for j in range(self.size):
+                x = j * 50
+                y = i * 50
+                rect = pygame.Rect(x, y, 50, 50)
+                pygame.draw.rect(self.screen, (0, 0, 0), rect, 1)
+
+                if self.sudoku.board[i][j] != 0:
+                    text = self.font.render(str(self.sudoku.board[i][j]), True, (0, 0, 0))
+                    text_rect = text.get_rect(center=rect.center)
+                    self.screen.blit(text, text_rect)
+
+        if self.selected_cell is not None:
+            x = self.selected_cell[1] * 50
+            y = self.selected_cell[0] * 50
+            rect = pygame.Rect(x, y, 50, 50)
+            pygame.draw.rect(self.screen, (255, 0, 0), rect, 3)
+
+        self.new_game_button.draw(self.screen)
+        self.solve_button.draw(self.screen)
+        self.reset_button.draw(self.screen)
+
+        pygame.display.update()
+        pygame.display.flip()
+
+    def new_game(self):
+        """
+        Generate a new Sudoku puzzle.
+        """
+        self.sudoku.generate(self.clues)
+        self.selected_cell = None
+
+    def solve(self):
+        """
+        Solve the current Sudoku puzzle.
+        """
+        self.sudoku.solve()
+        self.selected_cell = None
+
+    def reset(self):
+        """
+        Reset the current Sudoku puzzle.
+        """
+        self.sudoku = Sudoku(self.size)
+        self.sudoku.generate(self.clues)
+        self.selected_cell = None
+
+    def get_cell_at_pos(self, pos):
+        """
+        Get the row and column of the cell at the given position.
+        """
+        x, y = pos
+        row = y // 50
+        col = x // 50
+        if row < self.size and col < self.size:
+            return row, col
+        else:
+            return None
+
+
+class Button:
+    def __init__(self, rect, text):
+        self.rect = pygame.Rect(rect)
+        self.text = text
+        self.font = pygame.font.SysFont("Arial", 24)
+        pygame.display.set_caption("Sudoku")
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, (0, 255, 0), self.rect)
+        text_surface = self.font.render(self.text, True, (0, 0, 0))
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        surface.blit(text_surface, text_rect)
