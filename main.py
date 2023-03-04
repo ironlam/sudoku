@@ -1,4 +1,5 @@
-from sudoku_gui import SudokuGUI
+from gui import SudokuGame
 
 if __name__ == '__main__':
-    gui = SudokuGUI()
+    game = SudokuGame(9)
+    game.run()
